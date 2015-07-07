@@ -24,49 +24,34 @@ use std::sync::atomic::{AtomicIsize, Ordering, ATOMIC_ISIZE_INIT};
 
 use common::{ReadPreference, WriteConcern};
 use connstring::ConnectionString;
-use db::{Database, ThreadedDatabase};
+use db::Database;
 use error::Error::ResponseError;
 use pool::{ConnectionPool, PooledStream};
 
 /// Interfaces with a MongoDB server or replica set.
 #[derive(Clone)]
-pub struct ClientInner {
+pub struct Client {
     req_id: Arc<AtomicIsize>,
     pool: ConnectionPool,
     pub read_preference: ReadPreference,
     pub write_concern: WriteConcern,
+    arc: Option<Arc<Client>>,
 }
 
-pub trait ThreadedClient: Sync {
-    fn connect(host: &str, port: u16) -> Result<Self>;
-    fn with_prefs(host: &str, port: u16, read_pref: Option<ReadPreference>,
-                      write_concern: Option<WriteConcern>) -> Result<Self>;
-    fn with_uri(uri: &str) -> Result<Self>;
-    fn with_uri_and_prefs(uri: &str, read_pref: Option<ReadPreference>,
-                              write_concern: Option<WriteConcern>) -> Result<Self>;
-    fn with_config(config: ConnectionString, read_pref: Option<ReadPreference>,
-                   write_concern: Option<WriteConcern>) -> Result<Self>;
-    fn db<'a>(&'a self, db_name: &str) -> Database;
-    fn db_with_prefs(&self, db_name: &str, read_preference: Option<ReadPreference>,
-                         write_concern: Option<WriteConcern>) -> Database;
-    fn acquire_stream(&self) -> Result<PooledStream>;
-    fn get_req_id(&self) -> i32;
-    fn database_names(&self) -> Result<Vec<String>>;
-    fn drop_database(&self, db_name: &str) -> Result<()>;
-    fn is_master(&self) -> Result<bool>;
-}
+impl Client {
+    /// Creates a new Client connected to the default localhost:27017.
+    pub fn new() -> Result<Arc<Client>> {
+        Client::connect("localhost", 27017)
+    }
 
-pub type Client = Arc<ClientInner>;
-
-impl ThreadedClient for Client {
     /// Creates a new Client connected to a single MongoDB server.
-    fn connect(host: &str, port: u16) -> Result<Client> {
+    pub fn connect(host: &str, port: u16) -> Result<Arc<Client>> {
         Client::with_prefs(host, port, None, None)
     }
 
     /// `new` with custom read and write controls.
-    fn with_prefs(host: &str, port: u16, read_pref: Option<ReadPreference>,
-                  write_concern: Option<WriteConcern>) -> Result<Client> {
+    pub fn with_prefs(host: &str, port: u16, read_pref: Option<ReadPreference>,
+                      write_concern: Option<WriteConcern>) -> Result<Arc<Client>> {
         let config = ConnectionString::new(host, port);
         Client::with_config(config, read_pref, write_concern)
     }
@@ -74,19 +59,19 @@ impl ThreadedClient for Client {
     /// Creates a new Client connected to a server or replica set using
     /// a MongoDB connection string URI as defined by
     /// [the manual](http://docs.mongodb.org/manual/reference/connection-string/).
-    fn with_uri(uri: &str) -> Result<Client> {
+    pub fn with_uri(uri: &str) -> Result<Arc<Client>> {
         Client::with_uri_and_prefs(uri, None, None)
     }
 
     /// `with_uri` with custom read and write controls.
-    fn with_uri_and_prefs(uri: &str, read_pref: Option<ReadPreference>,
-                          write_concern: Option<WriteConcern>) -> Result<Client> {
+    pub fn with_uri_and_prefs(uri: &str, read_pref: Option<ReadPreference>,
+                              write_concern: Option<WriteConcern>) -> Result<Arc<Client>> {
         let config = try!(connstring::parse(uri));
         Client::with_config(config, read_pref, write_concern)
     }
 
     fn with_config(config: ConnectionString, read_pref: Option<ReadPreference>,
-                   write_concern: Option<WriteConcern>) -> Result<Client> {
+                   write_concern: Option<WriteConcern>) -> Result<Arc<Client>> {
 
         let rp = match read_pref {
             Some(rp) => rp,
@@ -98,37 +83,42 @@ impl ThreadedClient for Client {
             None => WriteConcern::new(),
         };
 
-        Ok(Arc::new(ClientInner {
+        let mut client = Client {
             req_id: Arc::new(ATOMIC_ISIZE_INIT),
             pool: ConnectionPool::new(config),
             read_preference: rp,
             write_concern: wc,
-        }))
+            arc: None,
+        };
+
+        let c = Arc::new(client);
+        client.arc = Some(c.clone());
+        Ok(c)
     }
 
     /// Creates a database representation with default read and write controls.
-    fn db(&self, db_name: &str) -> Database {
-        Database::open(self.clone(), db_name, None, None)
+    pub fn db(&self, db_name: &str) -> Arc<Database> {
+        Database::new(self.arc.as_ref().unwrap().clone(), db_name, None, None)
     }
 
     /// Creates a database representation with custom read and write controls.
-    fn db_with_prefs(&self, db_name: &str, read_preference: Option<ReadPreference>,
-                     write_concern: Option<WriteConcern>) -> Database {
-        Database::open(self.clone(), db_name, read_preference, write_concern)
+    pub fn db_with_prefs(&self, db_name: &str, read_preference: Option<ReadPreference>,
+                         write_concern: Option<WriteConcern>) -> Arc<Database> {
+        Database::new(self.arc.as_ref().unwrap().clone(), db_name, read_preference, write_concern)
     }
 
     /// Acquires a connection stream from the pool.
-    fn acquire_stream(&self) -> Result<PooledStream> {
+    pub fn acquire_stream(&self) -> Result<PooledStream> {
         Ok(try!(self.pool.acquire_stream()))
     }
 
     /// Returns a unique operational request id.
-    fn get_req_id(&self) -> i32 {
+    pub fn get_req_id(&self) -> i32 {
         self.req_id.fetch_add(1, Ordering::SeqCst) as i32
     }
 
     /// Returns a list of all database names that exist on the server.
-    fn database_names(&self) -> Result<Vec<String>> {
+    pub fn database_names(&self) -> Result<Vec<String>> {
         let mut doc = bson::Document::new();
         doc.insert("listDatabases".to_owned(), Bson::I32(1));
 
@@ -151,14 +141,14 @@ impl ThreadedClient for Client {
     }
 
     /// Drops the database defined by `db_name`.
-    fn drop_database(&self, db_name: &str) -> Result<()> {
+    pub fn drop_database(&self, db_name: &str) -> Result<()> {
         let db = self.db(db_name);
         try!(db.drop_database());
         Ok(())
     }
 
     /// Reports whether this instance is a primary, master, mongos, or standalone mongod instance.
-    fn is_master(&self) -> Result<bool> {
+    pub fn is_master(&self) -> Result<bool> {
         let mut doc = bson::Document::new();
         doc.insert("isMaster".to_owned(), Bson::I32(1));
 

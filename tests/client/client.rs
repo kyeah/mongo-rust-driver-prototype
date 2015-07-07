@@ -1,6 +1,5 @@
 use bson;
-use mongodb::{Client, ThreadedClient};
-use mongodb::db::ThreadedDatabase;
+use mongodb::Client;
 use std::sync::Arc;
 use std::thread;
 

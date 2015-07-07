@@ -1,6 +1,5 @@
 use bson::{Bson, Document};
-use mongodb::{Client, ThreadedClient};
-use mongodb::db::ThreadedDatabase;
+use mongodb::Client;
 use mongodb::cursor::Cursor;
 use mongodb::wire_protocol::flags::OpQueryFlags;
 

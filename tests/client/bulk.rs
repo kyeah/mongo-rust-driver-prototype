@@ -1,7 +1,6 @@
 use bson::Bson;
 use mongodb::coll::options::WriteModel;
-use mongodb::{Client, ThreadedClient};
-use mongodb::db::ThreadedDatabase;
+use mongodb::Client;
 
 #[test]
 fn bulk_ordered_insert_only() {
