@@ -6,39 +6,46 @@ use coll::Collection;
 use coll::options::FindOptions;
 use common::{ReadPreference, WriteConcern};
 use cursor::{Cursor, DEFAULT_BATCH_SIZE};
+use std::sync::Arc;
 
 /// Interfaces with a MongoDB database.
-pub struct Database<'a> {
+pub struct Database {
     pub name: String,
-    pub client: &'a Client,
+    pub client: Arc<Client>,
     pub read_preference: ReadPreference,
     pub write_concern: WriteConcern,
+    arc: Option<Arc<Database>>,
 }
 
-impl<'a> Database<'a> {
+impl Database {
     /// Creates a database representation with optional read and write controls.
-    pub fn new(client: &'a Client, name: &str,
-               read_preference: Option<ReadPreference>, write_concern: Option<WriteConcern>) -> Database<'a> {
+    pub fn new(client: Arc<Client>, name: &str,
+               read_preference: Option<ReadPreference>, write_concern: Option<WriteConcern>) -> Arc<Database> {
         let rp = read_preference.unwrap_or(client.read_preference.to_owned());
         let wc = write_concern.unwrap_or(client.write_concern.to_owned());
 
-        Database {
+        let mut db = Database {
             name: name.to_owned(),
-            client: client,
+            client: client.clone(),
             read_preference: rp,
             write_concern: wc,
-        }
+            arc: None,
+        };
+        
+        let d = Arc::new(db);
+        db.arc = Some(d.clone());
+        d
     }
 
     /// Creates a collection representation with inherited read and write controls.
-    pub fn collection(&'a self, coll_name: &str) -> Collection<'a> {
-        Collection::new(self, coll_name, false, Some(self.read_preference.to_owned()), Some(self.write_concern.to_owned()))
+    pub fn collection(&self, coll_name: &str) -> Collection {
+        Collection::new(self.arc.as_ref().unwrap().clone(), coll_name, false, Some(self.read_preference.to_owned()), Some(self.write_concern.to_owned()))
     }
 
     /// Creates a collection representation with custom read and write controls.
-    pub fn collection_with_prefs(&'a self, coll_name: &str, create: bool,
-                                 read_preference: Option<ReadPreference>, write_concern: Option<WriteConcern>) -> Collection<'a> {
-        Collection::new(self, coll_name, create, read_preference, write_concern)
+    pub fn collection_with_prefs(&self, coll_name: &str, create: bool,
+                                 read_preference: Option<ReadPreference>, write_concern: Option<WriteConcern>) -> Collection {
+        Collection::new(self.arc.as_ref().unwrap().clone(), coll_name, create, read_preference, write_concern)
     }
 
     /// Return a unique operational request id.
@@ -48,11 +55,11 @@ impl<'a> Database<'a> {
 
     /// Generates a cursor for a relevant operational command.
     pub fn command_cursor(&self, spec: bson::Document) -> Result<Cursor> {
-        Cursor::command_cursor(self.client, &self.name[..], spec)
+        Cursor::command_cursor(self.client.clone(), &self.name[..], spec)
     }
 
     /// Sends an administrative command over find_one.
-    pub fn command(&'a self, spec: bson::Document) -> Result<bson::Document> {
+    pub fn command(&self, spec: bson::Document) -> Result<bson::Document> {
         let coll = self.collection("$cmd");
         let mut options = FindOptions::new();
         options.batch_size = 1;
@@ -61,11 +68,11 @@ impl<'a> Database<'a> {
     }
 
     /// Returns a list of collections within the database.
-    pub fn list_collections(&'a self, filter: Option<bson::Document>) -> Result<Cursor> {
+    pub fn list_collections(&self, filter: Option<bson::Document>) -> Result<Cursor> {
         self.list_collections_with_batch_size(filter, DEFAULT_BATCH_SIZE)
     }
 
-    pub fn list_collections_with_batch_size(&'a self, filter: Option<bson::Document>,
+    pub fn list_collections_with_batch_size(&self, filter: Option<bson::Document>,
                                             batch_size: i32) -> Result<Cursor> {
 
         let mut spec = bson::Document::new();
@@ -83,7 +90,7 @@ impl<'a> Database<'a> {
 
 
     /// Returns a list of collection names within the database.
-    pub fn collection_names(&'a self, filter: Option<bson::Document>) -> Result<Vec<String>> {
+    pub fn collection_names(&self, filter: Option<bson::Document>) -> Result<Vec<String>> {
         let mut cursor = try!(self.list_collections(filter));
         let mut results = vec![];
         loop {
@@ -101,12 +108,12 @@ impl<'a> Database<'a> {
     ///
     /// Note that due to the implicit creation of collections during insertion, this
     /// method should only be used to instantiate capped collections.
-    pub fn create_collection(&'a self, name: &str) -> Result<()> {
+    pub fn create_collection(&self, name: &str) -> Result<()> {
         unimplemented!()
     }
 
     /// Permanently deletes the database from the server.
-    pub fn drop_database(&'a self) -> Result<()> {
+    pub fn drop_database(&self) -> Result<()> {
         let mut spec = bson::Document::new();
         spec.insert("dropDatabase".to_owned(), Bson::I32(1));
         try!(self.command(spec));
@@ -114,7 +121,7 @@ impl<'a> Database<'a> {
     }
 
     /// Permanently deletes the collection from the database.
-    pub fn drop_collection(&'a self, name: &str) -> Result<()> {
+    pub fn drop_collection(&self, name: &str) -> Result<()> {
         let mut spec = bson::Document::new();
         spec.insert("drop".to_owned(), Bson::String(name.to_owned()));
         try!(self.command(spec));

@@ -4,6 +4,7 @@ use wire_protocol::flags::OpQueryFlags;
 use wire_protocol::operations::Message;
 use std::collections::vec_deque::VecDeque;
 use std::io::{Read, Write};
+use std::sync::Arc;
 
 pub const DEFAULT_BATCH_SIZE: i32 = 20;
 
@@ -21,8 +22,8 @@ pub const DEFAULT_BATCH_SIZE: i32 = 20;
 /// `count` - How many documents have been returned so far.
 /// `buffer` - A cache for documents received from the query that have not
 ///            yet been returned.
-pub struct Cursor<'a> {
-    client: &'a Client,
+pub struct Cursor {
+    client: Arc<Client>,
     namespace: String,
     batch_size: i32,
     cursor_id: i64,
@@ -31,7 +32,7 @@ pub struct Cursor<'a> {
     buffer: VecDeque<bson::Document>,
 }
 
-impl <'a> Cursor<'a> {
+impl Cursor {
     /// Construcs a new Cursor for a database command.
     ///
     /// # Arguments
@@ -43,8 +44,8 @@ impl <'a> Cursor<'a> {
     /// # Return value
     ///
     /// Returns the newly created Cursor on success, or an Error on failure.
-    pub fn command_cursor(client: &'a Client, db: &str,
-                          doc: bson::Document) -> Result<Cursor<'a>> {
+    pub fn command_cursor(client: Arc<Client>, db: &str,
+                          doc: bson::Document) -> Result<Cursor> {
         Cursor::query_with_batch_size(client, format!("{}.$cmd", db),
                                       1, OpQueryFlags::no_flags(), 0, 0,
                                       doc, None, true)
@@ -121,12 +122,12 @@ impl <'a> Cursor<'a> {
     ///
     /// Returns the cursor for the query results on success, or an Error on
     /// failure.
-    pub fn query_with_batch_size<'b>(client: &'a Client,
+    pub fn query_with_batch_size<'b>(client: Arc<Client>,
                                      namespace: String, batch_size: i32,
                                      flags: OpQueryFlags, number_to_skip: i32,
                                      number_to_return: i32, query: bson::Document,
                                      return_field_selector: Option<bson::Document>,
-                                     is_cmd_cursor: bool) -> Result<Cursor<'a>> {
+                                     is_cmd_cursor: bool) -> Result<Cursor> {
         let result = Message::new_query(client.get_req_id(), flags,
                                         namespace.to_owned(),
                                         number_to_skip, batch_size,
@@ -146,7 +147,7 @@ impl <'a> Cursor<'a> {
             (buf, id, namespace)
         };
 
-        Ok(Cursor { client: client, namespace: namespace,
+        Ok(Cursor { client: client.clone(), namespace: namespace,
                     batch_size: batch_size, cursor_id: cursor_id,
                     limit: number_to_return, count: 0, buffer: buf, })
     }
@@ -172,11 +173,11 @@ impl <'a> Cursor<'a> {
     ///
     /// Returns the cursor for the query results on success, or an error string
     /// on failure.
-    pub fn query(client: &'a Client, namespace: String,
+    pub fn query(client: Arc<Client>, namespace: String,
                  flags: OpQueryFlags, number_to_skip: i32,
                  number_to_return: i32, query: bson::Document,
                  return_field_selector: Option<bson::Document>,
-                 is_cmd_cursor: bool) -> Result<Cursor<'a>> {
+                 is_cmd_cursor: bool) -> Result<Cursor> {
         Cursor::query_with_batch_size(client, namespace, DEFAULT_BATCH_SIZE, flags,
                                       number_to_skip,
                                       number_to_return, query,
@@ -259,7 +260,7 @@ impl <'a> Cursor<'a> {
     }
 }
 
-impl <'a> Iterator for Cursor<'a> {
+impl Iterator for Cursor {
     type Item = Result<bson::Document>;
 
     /// Attempts to read a BSON document from the cursor.
