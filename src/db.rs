@@ -9,18 +9,18 @@ use cursor::{Cursor, DEFAULT_BATCH_SIZE};
 use std::sync::Arc;
 
 /// Interfaces with a MongoDB database.
-pub struct Database {
+pub struct Database<'a> {
     pub name: String,
-    pub client: Arc<Client>,
+    pub client: Arc<&'a Client<'a>>,
     pub read_preference: ReadPreference,
     pub write_concern: WriteConcern,
-    arc: Option<Arc<Database>>,
+    arc: Option<Arc<&'a Database<'a>>>,
 }
 
-impl Database {
+impl<'a> Database<'a> {
     /// Creates a database representation with optional read and write controls.
-    pub fn new(client: Arc<Client>, name: &str,
-               read_preference: Option<ReadPreference>, write_concern: Option<WriteConcern>) -> Arc<Database> {
+    pub fn new(client: Arc<&'a Client<'a>>, name: &str,
+               read_preference: Option<ReadPreference>, write_concern: Option<WriteConcern>) -> Database<'a> {
         let rp = read_preference.unwrap_or(client.read_preference.to_owned());
         let wc = write_concern.unwrap_or(client.write_concern.to_owned());
 
@@ -32,19 +32,18 @@ impl Database {
             arc: None,
         };
 
-        let arc = Arc::new(db);
-        db.arc = Some(arc.clone());
-        arc
+        db.arc = Some(Arc::new(&db));
+        db
     }
 
     /// Creates a collection representation with inherited read and write controls.
-    pub fn collection(&self, coll_name: &str) -> Collection {
+    pub fn collection(&self, coll_name: &str) -> Collection<'a> {
         Collection::new(self.arc.as_ref().unwrap().clone(), coll_name, false, Some(self.read_preference.to_owned()), Some(self.write_concern.to_owned()))
     }
 
     /// Creates a collection representation with custom read and write controls.
     pub fn collection_with_prefs(&self, coll_name: &str, create: bool,
-                                 read_preference: Option<ReadPreference>, write_concern: Option<WriteConcern>) -> Collection {
+                                 read_preference: Option<ReadPreference>, write_concern: Option<WriteConcern>) -> Collection<'a> {
         Collection::new(self.arc.as_ref().unwrap().clone(), coll_name, create, read_preference, write_concern)
     }
 
@@ -54,7 +53,7 @@ impl Database {
     }
 
     /// Generates a cursor for a relevant operational command.
-    pub fn command_cursor(&self, spec: bson::Document) -> Result<Cursor> {
+    pub fn command_cursor(&self, spec: bson::Document) -> Result<Cursor<'a>> {
         Cursor::command_cursor(self.client.clone(), &self.name[..], spec)
     }
 
@@ -68,12 +67,12 @@ impl Database {
     }
 
     /// Returns a list of collections within the database.
-    pub fn list_collections(&self, filter: Option<bson::Document>) -> Result<Cursor> {
+    pub fn list_collections(&self, filter: Option<bson::Document>) -> Result<Cursor<'a>> {
         self.list_collections_with_batch_size(filter, DEFAULT_BATCH_SIZE)
     }
 
     pub fn list_collections_with_batch_size(&self, filter: Option<bson::Document>,
-                                            batch_size: i32) -> Result<Cursor> {
+                                            batch_size: i32) -> Result<Cursor<'a>> {
 
         let mut spec = bson::Document::new();
         let mut cursor = bson::Document::new();

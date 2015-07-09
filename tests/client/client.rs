@@ -5,7 +5,7 @@ use std::thread;
 
 #[test]
 fn database_names() {
-    let client = Client::with_uri("mongodb://localhost:27018").unwrap();
+    {let client = Client::with_uri("mongodb://localhost:27018").unwrap();
     let state_results = client.database_names().ok().expect("Failed to execute database_names.");
     for name in state_results {
         if name != "local" {
@@ -31,6 +31,8 @@ fn database_names() {
     assert!(results.contains(&"local".to_owned()));
     assert!(results.contains(&"new_db".to_owned()));
     assert!(results.contains(&"new_db_2".to_owned()));
+    }
+loop{}
 }
 
 

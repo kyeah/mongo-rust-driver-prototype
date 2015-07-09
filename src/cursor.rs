@@ -22,8 +22,8 @@ pub const DEFAULT_BATCH_SIZE: i32 = 20;
 /// `count` - How many documents have been returned so far.
 /// `buffer` - A cache for documents received from the query that have not
 ///            yet been returned.
-pub struct Cursor {
-    client: Arc<Client>,
+pub struct Cursor<'a> {
+    client: Arc<&'a Client<'a>>,
     namespace: String,
     batch_size: i32,
     cursor_id: i64,
@@ -32,7 +32,7 @@ pub struct Cursor {
     buffer: VecDeque<bson::Document>,
 }
 
-impl Cursor {
+impl<'a> Cursor<'a> {
     /// Construcs a new Cursor for a database command.
     ///
     /// # Arguments
@@ -44,8 +44,8 @@ impl Cursor {
     /// # Return value
     ///
     /// Returns the newly created Cursor on success, or an Error on failure.
-    pub fn command_cursor(client: Arc<Client>, db: &str,
-                          doc: bson::Document) -> Result<Cursor> {
+    pub fn command_cursor(client: Arc<&'a Client<'a>>, db: &str,
+                          doc: bson::Document) -> Result<Cursor<'a>> {
         Cursor::query_with_batch_size(client, format!("{}.$cmd", db),
                                       1, OpQueryFlags::no_flags(), 0, 0,
                                       doc, None, true)
@@ -122,12 +122,12 @@ impl Cursor {
     ///
     /// Returns the cursor for the query results on success, or an Error on
     /// failure.
-    pub fn query_with_batch_size<'b>(client: Arc<Client>,
+    pub fn query_with_batch_size<'b>(client: Arc<&'a Client<'a>>,
                                      namespace: String, batch_size: i32,
                                      flags: OpQueryFlags, number_to_skip: i32,
                                      number_to_return: i32, query: bson::Document,
                                      return_field_selector: Option<bson::Document>,
-                                     is_cmd_cursor: bool) -> Result<Cursor> {
+                                     is_cmd_cursor: bool) -> Result<Cursor<'a>> {
 
         let result = Message::new_query(client.get_req_id(), flags,
                                         namespace.to_owned(),
@@ -174,11 +174,11 @@ impl Cursor {
     ///
     /// Returns the cursor for the query results on success, or an error string
     /// on failure.
-    pub fn query(client: Arc<Client>, namespace: String,
+    pub fn query(client: Arc<&'a Client<'a>>, namespace: String,
                  flags: OpQueryFlags, number_to_skip: i32,
                  number_to_return: i32, query: bson::Document,
                  return_field_selector: Option<bson::Document>,
-                 is_cmd_cursor: bool) -> Result<Cursor> {
+                 is_cmd_cursor: bool) -> Result<Cursor<'a>> {
         Cursor::query_with_batch_size(client, namespace, DEFAULT_BATCH_SIZE, flags,
                                       number_to_skip,
                                       number_to_return, query,
@@ -261,7 +261,7 @@ impl Cursor {
     }
 }
 
-impl Iterator for Cursor {
+impl<'a> Iterator for Cursor<'a> {
     type Item = Result<bson::Document>;
 
     /// Attempts to read a BSON document from the cursor.

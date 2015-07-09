@@ -21,6 +21,7 @@ use bson::Bson;
 
 use std::sync::Arc;
 use std::sync::atomic::{AtomicIsize, Ordering, ATOMIC_ISIZE_INIT};
+use std::ops::Deref;
 
 use common::{ReadPreference, WriteConcern};
 use connstring::ConnectionString;
@@ -30,28 +31,28 @@ use pool::{ConnectionPool, PooledStream};
 
 /// Interfaces with a MongoDB server or replica set.
 #[derive(Clone)]
-pub struct Client {
+pub struct Client<'a> {
     req_id: Arc<AtomicIsize>,
     pool: ConnectionPool,
     pub read_preference: ReadPreference,
     pub write_concern: WriteConcern,
-    arc: Option<Arc<Client>>,
+    arc: Option<Arc<&'a Client<'a>>>,
 }
 
-impl Client {
+impl<'a> Client<'a> {
     /// Creates a new Client connected to the default localhost:27017.
-    pub fn new() -> Result<Arc<Client>> {
+    pub fn new() -> Result<Client<'a>> {
         Client::connect("localhost", 27017)
     }
 
     /// Creates a new Client connected to a single MongoDB server.
-    pub fn connect(host: &str, port: u16) -> Result<Arc<Client>> {
+    pub fn connect(host: &str, port: u16) -> Result<Client<'a>> {
         Client::with_prefs(host, port, None, None)
     }
 
     /// `new` with custom read and write controls.
     pub fn with_prefs(host: &str, port: u16, read_pref: Option<ReadPreference>,
-                      write_concern: Option<WriteConcern>) -> Result<Arc<Client>> {
+                      write_concern: Option<WriteConcern>) -> Result<Client<'a>> {
         let config = ConnectionString::new(host, port);
         Client::with_config(config, read_pref, write_concern)
     }
@@ -59,19 +60,19 @@ impl Client {
     /// Creates a new Client connected to a server or replica set using
     /// a MongoDB connection string URI as defined by
     /// [the manual](http://docs.mongodb.org/manual/reference/connection-string/).
-    pub fn with_uri(uri: &str) -> Result<Arc<Client>> {
+    pub fn with_uri(uri: &str) -> Result<Client<'a>> {
         Client::with_uri_and_prefs(uri, None, None)
     }
 
     /// `with_uri` with custom read and write controls.
     pub fn with_uri_and_prefs(uri: &str, read_pref: Option<ReadPreference>,
-                              write_concern: Option<WriteConcern>) -> Result<Arc<Client>> {
+                              write_concern: Option<WriteConcern>) -> Result<Client<'a>> {
         let config = try!(connstring::parse(uri));
         Client::with_config(config, read_pref, write_concern)
     }
 
     fn with_config(config: ConnectionString, read_pref: Option<ReadPreference>,
-                   write_concern: Option<WriteConcern>) -> Result<Arc<Client>> {
+                   write_concern: Option<WriteConcern>) -> Result<Client<'a>> {
 
         let rp = match read_pref {
             Some(rp) => rp,
@@ -91,19 +92,18 @@ impl Client {
             arc: None,
         };
 
-        let c = Arc::new(client);
-        client.arc = Some(c.clone());
-        Ok(c)
+        client.arc = Some(Arc::new(&client));
+        Ok(client)
     }
 
     /// Creates a database representation with default read and write controls.
-    pub fn db(&self, db_name: &str) -> Arc<Database> {
+    pub fn db(&self, db_name: &str) -> Database<'a> {
         Database::new(self.arc.as_ref().unwrap().clone(), db_name, None, None)
     }
 
     /// Creates a database representation with custom read and write controls.
     pub fn db_with_prefs(&self, db_name: &str, read_preference: Option<ReadPreference>,
-                         write_concern: Option<WriteConcern>) -> Arc<Database> {
+                         write_concern: Option<WriteConcern>) -> Database<'a> {
         Database::new(self.arc.as_ref().unwrap().clone(), db_name, read_preference, write_concern)
     }
 
