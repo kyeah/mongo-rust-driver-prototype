@@ -6,7 +6,7 @@ use coll::Collection;
 use coll::options::FindOptions;
 use common::{ReadPreference, WriteConcern};
 use cursor::{Cursor, DEFAULT_BATCH_SIZE};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 /// Interfaces with a MongoDB database.
 pub struct Database {
@@ -14,7 +14,11 @@ pub struct Database {
     pub client: Arc<Client>,
     pub read_preference: ReadPreference,
     pub write_concern: WriteConcern,
-    arc: Option<Arc<Database>>,
+    inner: Arc<Mutex<DatabaseInner>>,
+}
+
+struct DatabaseInner {
+    db: Option<Arc<Database>>,
 }
 
 impl Database {
@@ -29,23 +33,26 @@ impl Database {
             client: client.clone(),
             read_preference: rp,
             write_concern: wc,
-            arc: None,
+            inner: Arc::new(Mutex::new(DatabaseInner { db: None })),
         };
 
         let arc = Arc::new(db);
-        db.arc = Some(arc.clone());
+        {
+            let mut inner = arc.inner.lock().unwrap();
+            inner.db = Some(arc.clone());
+        }
         arc
     }
 
     /// Creates a collection representation with inherited read and write controls.
     pub fn collection(&self, coll_name: &str) -> Collection {
-        Collection::new(self.arc.as_ref().unwrap().clone(), coll_name, false, Some(self.read_preference.to_owned()), Some(self.write_concern.to_owned()))
+        Collection::new(self.inner.lock().unwrap().db.as_ref().unwrap().clone(), coll_name, false, Some(self.read_preference.to_owned()), Some(self.write_concern.to_owned()))
     }
 
     /// Creates a collection representation with custom read and write controls.
     pub fn collection_with_prefs(&self, coll_name: &str, create: bool,
                                  read_preference: Option<ReadPreference>, write_concern: Option<WriteConcern>) -> Collection {
-        Collection::new(self.arc.as_ref().unwrap().clone(), coll_name, create, read_preference, write_concern)
+        Collection::new(self.inner.lock().unwrap().db.as_ref().unwrap().clone(), coll_name, create, read_preference, write_concern)
     }
 
     /// Return a unique operational request id.

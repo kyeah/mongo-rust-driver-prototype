@@ -19,7 +19,8 @@ pub use error::{Error, Result};
 
 use bson::Bson;
 
-use std::sync::Arc;
+use std::cell::RefCell;
+use std::sync::{Arc, Mutex};
 use std::sync::atomic::{AtomicIsize, Ordering, ATOMIC_ISIZE_INIT};
 
 use common::{ReadPreference, WriteConcern};
@@ -35,7 +36,11 @@ pub struct Client {
     pool: ConnectionPool,
     pub read_preference: ReadPreference,
     pub write_concern: WriteConcern,
-    arc: Option<Arc<Client>>,
+    inner: Arc<Mutex<ClientInner>>,
+}
+
+struct ClientInner {
+    client: Option<Arc<Client>>,
 }
 
 impl Client {
@@ -88,23 +93,29 @@ impl Client {
             pool: ConnectionPool::new(config),
             read_preference: rp,
             write_concern: wc,
-            arc: None,
+            inner: Arc::new(Mutex::new(ClientInner { client: None })),
         };
 
-        let c = Arc::new(client);
-        client.arc = Some(c.clone());
-        Ok(c)
+        let arc = Arc::new(client);
+        {
+            let mut inner = try!(arc.inner.lock());
+            inner.client = Some(arc.clone());
+        }
+        Ok(arc)
     }
+
+    // helper funct to return clientinner
+    // other methods take clientinner and return the held arc
 
     /// Creates a database representation with default read and write controls.
     pub fn db(&self, db_name: &str) -> Arc<Database> {
-        Database::new(self.arc.as_ref().unwrap().clone(), db_name, None, None)
+        Database::new(self.inner.lock().unwrap().client.as_ref().unwrap().clone(), db_name, None, None)
     }
 
     /// Creates a database representation with custom read and write controls.
     pub fn db_with_prefs(&self, db_name: &str, read_preference: Option<ReadPreference>,
                          write_concern: Option<WriteConcern>) -> Arc<Database> {
-        Database::new(self.arc.as_ref().unwrap().clone(), db_name, read_preference, write_concern)
+        Database::new(self.inner.lock().unwrap().client.as_ref().unwrap().clone(), db_name, read_preference, write_concern)
     }
 
     /// Acquires a connection stream from the pool.
