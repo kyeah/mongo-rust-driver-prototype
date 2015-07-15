@@ -29,10 +29,11 @@ pub struct Cursor {
     limit: i32,
     count: i32,
     buffer: VecDeque<bson::Document>,
+    err: Result<()>,
 }
 
 impl Cursor {
-    /// Construcs a new Cursor for a database command.
+    /// Constructs a new Cursor for a database command.
     ///
     /// # Arguments
     ///
@@ -148,7 +149,7 @@ impl Cursor {
 
         Ok(Cursor { client: client, namespace: namespace,
                     batch_size: batch_size, cursor_id: cursor_id,
-                    limit: number_to_return, count: 0, buffer: buf, })
+                    limit: number_to_return, count: 0, buffer: buf, err: Ok(()) })
     }
 
     /// Executes a query with the default batch size.
@@ -223,9 +224,8 @@ impl Cursor {
             let bson_option = self.next();
 
             match bson_option {
-                Some(Ok(bson)) => vec.push(bson),
-                Some(Err(err)) => return Err(err),
-                None => break,
+                Some(bson) => vec.push(bson),
+                None => try!(self.ok()),
             };
         }
 
@@ -247,20 +247,37 @@ impl Cursor {
     /// # Return value
     ///
     /// Returns `true` if the cursor is not yet exhausted, or `false` if it is.
-    pub fn has_next(&mut self) -> Result<bool> {
+    pub fn has_next(&mut self) -> bool {
         if self.limit > 0 && self.count >= self.limit {
-            Ok(false)
+            false
         } else {
             if self.buffer.is_empty() && self.limit != 1 && self.cursor_id != 0 {
-                try!(self.get_from_stream());
+                let result = self.get_from_stream();
+                if result.is_err() {
+                    self.err = result;
+                }
             }
-            Ok(!self.buffer.is_empty())
+            !self.buffer.is_empty()
         }
+    }
+
+    pub fn try_next(&mut self) -> Result<Option<bson::Document>> {
+        match self.next() {
+            Some(doc) => Ok(Some(doc)),
+            None => {
+                try!(self.ok());
+                Ok(None)
+            }
+        }
+    }
+
+    pub fn ok(&self) -> Result<()> {
+        self.err.clone()
     }
 }
 
 impl Iterator for Cursor {
-    type Item = Result<bson::Document>;
+    type Item = bson::Document;
 
     /// Attempts to read a BSON document from the cursor.
     ///
@@ -269,17 +286,12 @@ impl Iterator for Cursor {
     /// Returns a BSON document if there is another one to return; `None` if
     /// there are no more documents to return; or an Error if the request for
     /// another document fails.
-    fn next(&mut self) -> Option<Result<bson::Document>> {
-        match self.has_next() {
-            Ok(true) => {
-                self.count += 1;
-                match self.buffer.pop_front() {
-                    Some(bson) => Some(Ok(bson)),
-                    None => None,
-                }
-            },
-            Ok(false) => None,
-            Err(err) => Some(Err(err)),
+    fn next(&mut self) -> Option<bson::Document> {
+        if self.has_next() {
+            self.count += 1;
+            self.buffer.pop_front()
+        } else {
+            None
         }
     }
 }

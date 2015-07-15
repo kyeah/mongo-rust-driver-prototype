@@ -172,11 +172,7 @@ impl Collection {
                     options: Option<FindOptions>) -> Result<Option<bson::Document>> {
         let options = options.unwrap_or(FindOptions::new());
         let mut cursor = try!(self.find(filter, Some(options.with_limit(1))));
-        match cursor.next() {
-            Some(Ok(bson)) => Ok(Some(bson)),
-            Some(Err(err)) => Err(err),
-            None => Ok(None)
-        }
+        cursor.try_next()
     }
 
     // Helper method for all findAndModify commands.

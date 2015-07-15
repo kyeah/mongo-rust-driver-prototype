@@ -18,21 +18,15 @@ use std::sync::Arc;
 pub struct FileCursor {
     store: Store,
     cursor: Cursor,
-    err: Option<Error>,
 }
 
 impl Iterator for FileCursor {
     type Item = File;
 
     fn next(&mut self) -> Option<File> {
-        match self.cursor.next() {
-            Some(Ok(bdoc)) => Some(File::with_doc(self.store.clone(), bdoc)),
-            Some(Err(err)) => {
-                self.err = Some(err);
-                None
-            },
-            None => None,
-        }
+        self.cursor.next().and_then(|bdoc| {
+            Some(File::with_doc(self.store.clone(), bdoc))
+        })
     }
 }
 
@@ -51,6 +45,20 @@ impl FileCursor {
         Ok(docs.into_iter().map(|doc| {
             File::with_doc(self.store.clone(), doc)
         }).collect())
+    }
+
+    pub fn try_next(&mut self) -> Result<Option<File>> {
+        match self.next() {
+            Some(file) => Ok(Some(file)),
+            None => {
+                try!(self.ok());
+                Ok(None)
+            }
+        }
+    }
+
+    pub fn ok(&self) -> Result<()> {
+        self.cursor.ok()
     }
 }
 
@@ -124,7 +132,6 @@ impl ThreadedStore for Store {
         Ok(FileCursor {
             store: self.clone(),
             cursor: try!(self.files.find(filter, options)),
-            err: None,
         })
     }
 
