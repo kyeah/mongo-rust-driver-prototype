@@ -22,8 +22,7 @@ fn bulk_ordered_insert_only() {
 
     assert_eq!(cursor.len(), 4);
 
-    for (i, result) in cursor.into_iter().enumerate() {
-        let doc = result.unwrap();
+    for (i, doc) in cursor.into_iter().enumerate() {
         let expected_id = i + 1;
 
         match doc.get("_id") {
@@ -57,8 +56,7 @@ fn bulk_unordered_insert_only() {
 
     assert_eq!(cursor.len(), 4);
 
-    for (i, result) in cursor.into_iter().enumerate() {
-        let doc = result.unwrap();
+    for (i, doc) in cursor.into_iter().enumerate() {
         let expected_id = i + 1;
 
         match doc.get("_id") {

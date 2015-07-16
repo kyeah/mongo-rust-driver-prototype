@@ -63,11 +63,12 @@ fn find_and_insert() {
     // Find document
     let mut cursor = coll.find(None, None).ok().expect("Failed to execute find command.");
     let result = match cursor.next() {
-        Some(Ok(res)) => res,
-        Some(Err(_)) => panic!("Received error from 'cursor.next()'."),
+        Some(res) => res,
         None => panic!("Expected bson."),
     };
 
+    cursor.err().ok().expect("Received error from 'cursor.next()'.");
+    
     // Assert expected title of document
     match result.get("title") {
         Some(&Bson::String(ref title)) => assert_eq!("Jaws", title),
@@ -127,10 +128,11 @@ fn find_one_and_delete() {
     // Validate state of collection
     let mut cursor = coll.find(None, None).ok().expect("Failed to execute find command.");
     let result = match cursor.next() {
-        Some(Ok(res)) => res,
-        Some(Err(_)) => panic!("Received error from 'cursor.next()'."),
+        Some(res) => res,
         None => panic!("Expected bson."),
     };
+
+    cursor.err().ok().expect("Received error from 'cursor.next()'.");
 
     match result.get("title") {
         Some(&Bson::String(ref title)) => assert_eq!("Jaws", title),
@@ -447,11 +449,12 @@ fn delete_one() {
     coll.delete_one(doc2.clone(), None).ok().expect("Failed to delete document.");
     let mut cursor = coll.find(None, None).ok().expect("Failed to execute find command.");
     let result = match cursor.next() {
-        Some(Ok(res)) => res,
-        Some(Err(_)) => panic!("Received error from 'cursor.next()'."),
+        Some(res) => res,
         None => panic!("Expected bson."),
     };
 
+    cursor.err().ok().expect("Received error from 'cursor.next()'.");
+    
     match result.get("title") {
         Some(&Bson::String(ref title)) => assert_eq!("Jaws", title),
         _ => panic!("Expected Bson::String!"),
@@ -479,11 +482,12 @@ fn delete_many() {
     coll.delete_many(doc2.clone(), None).ok().expect("Failed to delete documents.");
     let mut cursor = coll.find(None, None).ok().expect("Failed to execute find command.");
     let result = match cursor.next() {
-        Some(Ok(res)) => res,
-        Some(Err(_)) => panic!("Received error from 'cursor.next()'."),
+        Some(res) => res,
         None => panic!("Expected bson."),
     };
 
+    cursor.err().ok().expect("Received error from 'cursor.next()'.");
+    
     match result.get("title") {
         Some(&Bson::String(ref title)) => assert_eq!("Jaws", title),
         _ => panic!("Expected Bson::String!"),

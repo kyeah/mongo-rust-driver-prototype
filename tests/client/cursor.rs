@@ -42,26 +42,30 @@ fn cursor_features() {
     }
 
     let bson = match cursor.next() {
-        Some(Ok(b)) => b,
-        Some(Err(_)) => panic!("Received error on 'cursor.next()'"),
+        Some(b) => b,
         None => panic!("Nothing returned from Cursor#next")
     };
+
+    cursor.err().ok().expect("Received error on 'cursor.next()'");
 
     match bson.get("foo") {
         Some(&Bson::I64(3)) => (),
         _ => panic!("Wrong value returned from Cursor#next")
     };
 
-    assert!(cursor.has_next().ok().expect("Failed to execute 'has_next()'."));
+    assert!(cursor.has_next());
+    cursor.err().ok().expect("Failed to execute 'has_next()'.");
+
     let vec = cursor.next_n(20).ok().expect("Failed to get next 20 results.");;
 
     assert_eq!(vec.len(), 6 as usize);
-    assert!(!cursor.has_next().ok().expect("Failed to execute 'has_next()'."));
+    assert!(!cursor.has_next());
+    cursor.err().ok().expect("Failed to execute 'has_next()'.");
 
-    for i in 0..vec.len() {
-        match vec[i].get("foo") {
-            Some(&Bson::I64(j)) => assert_eq!(4 + i as i64 , j),
-            _ => panic!("Wrong value returned from Cursor#next_batch")
-        };
-    }
+for i in 0..vec.len() {
+    match vec[i].get("foo") {
+        Some(&Bson::I64(j)) => assert_eq!(4 + i as i64 , j),
+        _ => panic!("Wrong value returned from Cursor#next_batch")
+    };
+}
 }

@@ -50,6 +50,8 @@ fn put_get() {
         _ => panic!("Expected to retrieve file from cursor."),
     }
 
+    cursor.err().ok().expect("Failed to execute find on cursor.");
+    
     let mut opts = FindOptions::new();
     opts.sort = Some(doc!{ "n" => 1});
 

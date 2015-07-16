@@ -225,7 +225,7 @@ impl Cursor {
 
             match bson_option {
                 Some(bson) => vec.push(bson),
-                None => try!(self.ok()),
+                None => try!(self.err()),
             };
         }
 
@@ -265,13 +265,13 @@ impl Cursor {
         match self.next() {
             Some(doc) => Ok(Some(doc)),
             None => {
-                try!(self.ok());
+                try!(self.err());
                 Ok(None)
             }
         }
     }
 
-    pub fn ok(&self) -> Result<()> {
+    pub fn err(&self) -> Result<()> {
         self.err.clone()
     }
 }

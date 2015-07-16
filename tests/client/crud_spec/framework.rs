@@ -9,11 +9,12 @@ macro_rules! run_aggregate_test {
             };
 
             for bson in array {
-                let b2 = &Bson::Document(cursor.next().unwrap().unwrap());
+                let b2 = &Bson::Document(cursor.next().unwrap());
                 assert!(eq::bson_eq(&bson, b2));
             }
 
-            assert!(!cursor.has_next().ok().expect("Failed to execute 'has_next()' on cursor"));
+            assert!(!cursor.has_next());
+            cursor.err().ok().expect("Failed to execute 'has_next()' on cursor");
         }
 
         check_coll!($db, $coll, $outcome.collection);
@@ -31,10 +32,10 @@ macro_rules! run_count_test {
 macro_rules! run_delete_test {
     ( $db:expr, $coll:expr, $filter:expr, $outcome:expr, $many:expr ) => {{
         let count = if $many {
-                        $coll.delete_many($filter, None)
-                    } else {
-                        $coll.delete_one($filter, None)
-                    };
+            $coll.delete_many($filter, None)
+        } else {
+            $coll.delete_one($filter, None)
+        };
 
         let expected = count.unwrap().deleted_count;
 
@@ -94,7 +95,7 @@ macro_rules! run_find_one_and_replace_test {
 
           assert!(eq::bson_eq(&bson, &$outcome.result));
           check_coll!($db, $coll, $outcome.collection);
-    }};
+      }};
 }
 
 macro_rules! run_find_one_and_update_test {
@@ -109,7 +110,7 @@ macro_rules! run_find_one_and_update_test {
 
           assert!(eq::bson_eq(&bson, &$outcome.result));
           check_coll!($db, $coll, $outcome.collection);
-    }};
+      }};
 }
 
 macro_rules! run_find_test {
@@ -122,10 +123,11 @@ macro_rules! run_find_test {
         };
 
         for bson in array {
-            assert!(eq::bson_eq(&bson, &Bson::Document(cursor.next().unwrap().unwrap())));
+            assert!(eq::bson_eq(&bson, &Bson::Document(cursor.next().unwrap())));
         }
 
-        assert!(!cursor.has_next().ok().expect("Failed to execute 'has_next()' on cursor"));
+        assert!(!cursor.has_next());
+        cursor.err().ok().expect("Failed to execute 'has_next()' on cursor");
         check_coll!($db, $coll, $outcome.collection);
     }};
 }
@@ -168,63 +170,24 @@ macro_rules! run_insert_one_test {
 
 macro_rules! run_replace_one_test {
     ( $db:expr, $coll:expr, $filter:expr, $replacement:expr, $upsert:expr,
-        $outcome:expr ) => {{
-            let actual = $coll.replace_one($filter, $replacement, $upsert,
-                                           None).unwrap();
-
-            let (matched, modified, upserted) = match $outcome.result {
-                Bson::Document(ref doc) => (
-                    doc.get("matchedCount").unwrap(),
-                    doc.get("modifiedCount").unwrap(),
-                    doc.get("upsertedId"),
-                    ),
-                _ => panic!("`delete` test result should be a document")
-            };
-
-            assert!(matched.int_eq(actual.matched_count as i64));
-            assert!(modified.int_eq(actual.modified_count as i64));
-
-            let id = match actual.upserted_id {
-                Some(Bson::Document(ref doc)) => doc.get("_id"),
-                _ => None
-            };
-
-            match (upserted, id) {
-                (None, None) => (),
-                (Some(ref bson1), Some(ref bson2)) =>
-                assert!(eq::bson_eq(&bson1, &bson2)),
-                _ => panic!("Wrong `upsertedId` returned")
-            };
-
-            check_coll!($db, $coll, $outcome.collection);
-    }};
-}
-
-macro_rules! run_update_test {
-    ( $db:expr, $coll:expr, $filter:expr, $update:expr, $upsert:expr,
-      $many:expr, $outcome:expr ) => {{
-          let result = if $many {
-                           $coll.update_many($filter, $update, $upsert, None)
-                       } else {
-                           $coll.update_one($filter, $update, $upsert, None)
-                       };
-
-          let actual = result.unwrap();
+      $outcome:expr ) => {{
+          let actual = $coll.replace_one($filter, $replacement, $upsert,
+                                         None).unwrap();
 
           let (matched, modified, upserted) = match $outcome.result {
               Bson::Document(ref doc) => (
                   doc.get("matchedCount").unwrap(),
                   doc.get("modifiedCount").unwrap(),
                   doc.get("upsertedId"),
-              ),
-              _ => panic!("`update` test result should be a document")
+                  ),
+              _ => panic!("`delete` test result should be a document")
           };
 
           assert!(matched.int_eq(actual.matched_count as i64));
           assert!(modified.int_eq(actual.modified_count as i64));
 
           let id = match actual.upserted_id {
-	          Some(Bson::Document(ref doc)) => doc.get("_id"),
+              Some(Bson::Document(ref doc)) => doc.get("_id"),
               _ => None
           };
 
@@ -236,7 +199,46 @@ macro_rules! run_update_test {
           };
 
           check_coll!($db, $coll, $outcome.collection);
-    }};
+      }};
+}
+
+macro_rules! run_update_test {
+    ( $db:expr, $coll:expr, $filter:expr, $update:expr, $upsert:expr,
+      $many:expr, $outcome:expr ) => {{
+          let result = if $many {
+              $coll.update_many($filter, $update, $upsert, None)
+          } else {
+              $coll.update_one($filter, $update, $upsert, None)
+          };
+
+          let actual = result.unwrap();
+
+          let (matched, modified, upserted) = match $outcome.result {
+              Bson::Document(ref doc) => (
+                  doc.get("matchedCount").unwrap(),
+                  doc.get("modifiedCount").unwrap(),
+                  doc.get("upsertedId"),
+                  ),
+              _ => panic!("`update` test result should be a document")
+          };
+
+          assert!(matched.int_eq(actual.matched_count as i64));
+          assert!(modified.int_eq(actual.modified_count as i64));
+
+          let id = match actual.upserted_id {
+              Some(Bson::Document(ref doc)) => doc.get("_id"),
+              _ => None
+          };
+
+          match (upserted, id) {
+              (None, None) => (),
+              (Some(ref bson1), Some(ref bson2)) =>
+                  assert!(eq::bson_eq(&bson1, &bson2)),
+              _ => panic!("Wrong `upsertedId` returned")
+          };
+
+          check_coll!($db, $coll, $outcome.collection);
+      }};
 }
 
 #[macro_export]
@@ -307,10 +309,11 @@ macro_rules! check_coll {
 
         for doc in outcome_coll.data.iter() {
             assert!(eq::bson_eq(&Bson::Document(doc.clone()),
-                                &Bson::Document(cursor.next().unwrap().unwrap())));
+                                &Bson::Document(cursor.next().unwrap())));
         }
 
-        assert!(!cursor.has_next().ok().expect("Failed to execute 'has_next()' on cursor"));
+        assert!(!cursor.has_next());
+        cursor.err().ok().expect("Failed to execute 'has_next()' on cursor");
 
         $coll.drop().unwrap();
     }};

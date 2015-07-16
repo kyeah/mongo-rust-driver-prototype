@@ -111,7 +111,7 @@ impl ThreadedDatabase for Database {
         let mut cursor = try!(self.list_collections(filter));
         let mut results = vec![];
         loop {
-            try!(cursor.ok());
+            try!(cursor.err());
             match cursor.next() {
                 Some(doc) => if let Some(&Bson::String(ref name)) = doc.get("name") {
                     results.push(name.to_owned());

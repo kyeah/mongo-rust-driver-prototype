@@ -6,7 +6,8 @@ use db::{Database, ThreadedDatabase};
 use coll::Collection;
 use coll::options::FindOptions;
 use cursor::Cursor;
-use Error::{self, ArgumentError};
+
+use Error::ArgumentError;
 use Result;
 
 use self::file::{File, Mode};
@@ -51,14 +52,14 @@ impl FileCursor {
         match self.next() {
             Some(file) => Ok(Some(file)),
             None => {
-                try!(self.ok());
+                try!(self.err());
                 Ok(None)
             }
         }
     }
 
-    pub fn ok(&self) -> Result<()> {
-        self.cursor.ok()
+    pub fn err(&self) -> Result<()> {
+        self.cursor.err()
     }
 }
 
