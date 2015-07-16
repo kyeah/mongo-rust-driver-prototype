@@ -46,7 +46,18 @@ impl Clone for Error {
         match self {
             &Error::IoError(ref err) => Error::IoError(
                 io::Error::new(err.kind(), err.description())),
-            err => err.clone(),
+            &Error::WriteError(ref inner) => Error::WriteError(inner.clone()),
+            &Error::BulkWriteError(ref inner) => Error::BulkWriteError(inner.clone()),
+            &Error::EncoderError(ref inner) => Error::EncoderError(inner.clone()),
+            &Error::DecoderError(ref inner) => Error::DecoderError(inner.clone()),
+            &Error::OIDError(ref inner) => Error::OIDError(inner.clone()),
+            &Error::FromHexError(ref inner) => Error::FromHexError(inner.clone()),
+            &Error::ArgumentError(ref inner) => Error::ArgumentError(inner.to_owned()),
+            &Error::OperationError(ref inner) => Error::OperationError(inner.to_owned()),
+            &Error::ResponseError(ref inner) => Error::ResponseError(inner.to_owned()),
+            &Error::CursorNotFoundError => Error::CursorNotFoundError,
+            &Error::PoisonLockError => Error::PoisonLockError,
+            &Error::DefaultError(ref inner) => Error::DefaultError(inner.to_owned()),
         }
     }
 }
