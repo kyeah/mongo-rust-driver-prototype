@@ -21,7 +21,7 @@ impl Outcome {
     pub fn from_json(object: &Object) -> Result<Outcome, String> {
         let mut servers = HashMap::new();
 
-        if let Some(&Json::Object(ref obj)) = object.get("servers") {                       
+        if let Some(&Json::Object(ref obj)) = object.get("servers") {
             for (host, json) in obj.into_iter() {
                 let doc = val_or_err!(json,
                                       &Json::Object(ref obj) => obj,
@@ -32,12 +32,12 @@ impl Outcome {
                                                   "`setName` must be a string.");
 
                 let server_type = val_or_err!(doc.get("type"),
-                                             Some(&Json::String(ref s)) => ServerType::from_str(s).unwrap(),
-                                             "`type` must be a string.");
+                                              Some(&Json::String(ref s)) => ServerType::from_str(s).unwrap(),
+                                              "`type` must be a string.");
 
                 let server_obj = Server { set_name: server_set_name, stype: server_type };
                 servers.insert(connstring::parse_host(host).unwrap(), server_obj);
-            }            
+            }
         }
 
         let set_name = match object.get("setName") {
@@ -49,7 +49,7 @@ impl Outcome {
             Some(&Json::String(ref s)) => TopologyType::from_str(s).unwrap(),
             _ => TopologyType::Unknown,
         };
-        
+
         Ok(Outcome {
             servers: servers,
             set_name: set_name,
