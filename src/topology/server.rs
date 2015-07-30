@@ -6,6 +6,7 @@ use connstring::Host;
 use pool::{ConnectionPool, PooledStream};
 
 use std::collections::BTreeMap;
+use std::str::FromStr;
 use std::sync::{Arc, RwLock};
 use std::sync::atomic::{AtomicBool, AtomicIsize, Ordering};
 use std::thread;
@@ -51,6 +52,22 @@ pub struct Server {
     pub description: Arc<RwLock<ServerDescription>>,
     pool: Arc<ConnectionPool>,
     monitor_running: Arc<AtomicBool>,
+}
+
+impl FromStr for ServerType {
+    type Err = Error;
+    fn from_str(s: &str) -> Result<Self> {
+        Ok(match s {
+            "Standalone" => ServerType::Standalone,
+            "Mongos" => ServerType::Mongos,
+            "RSPrimary" => ServerType::RSPrimary,
+            "RSSecondary" => ServerType::RSSecondary,
+            "RSArbiter" => ServerType::RSArbiter,
+            "RSOther" => ServerType::RSOther,
+            "RSGhost" => ServerType::RSGhost,
+            _ => ServerType::Unknown,
+        })
+    }
 }
 
 impl ServerDescription {

@@ -3,6 +3,7 @@ mod macros;
 
 pub mod crud;
 pub mod eq;
+pub mod sdam;
 
 use rustc_serialize::json::Object;
 
