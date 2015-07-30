@@ -1,1 +1,3 @@
-pub mod framework;
+#[macro_use]
+mod framework;
+mod single;
