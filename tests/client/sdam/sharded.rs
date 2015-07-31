@@ -12,7 +12,7 @@ fn sdam_sharded() {
         let filename = path2.to_string_lossy();
         if filename.ends_with(".json") {
             println!("Running suite for {}", filename);
-            run_suite(&filename)
+            run_suite(&filename, None)
         }
     }
 }

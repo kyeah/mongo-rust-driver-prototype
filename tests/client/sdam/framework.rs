@@ -1,6 +1,6 @@
 use mongodb::Error::OperationError;
 use mongodb::connstring;
-use mongodb::topology::Topology;
+use mongodb::topology::{Topology, TopologyDescription, TopologyType};
 use mongodb::topology::monitor::IsMasterResult;
 
 use json::sdam::reader::SuiteContainer;
@@ -10,14 +10,25 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::sync::atomic::AtomicIsize;
 
-pub fn run_suite(file: &str) {
+pub fn run_suite(file: &str, description: Option<TopologyDescription>) {
     let json = Json::from_file(file).unwrap();
     let suite = json.get_suite().unwrap();
 
     let dummy_req_id = Arc::new(AtomicIsize::new(0));
 
     let connection_string = connstring::parse(&suite.uri).unwrap();
-    let topology = Topology::new(dummy_req_id.clone(), connection_string, None).unwrap();
+    
+    let should_ignore_description = if let Some(ref inner) = description {
+        inner.ttype == TopologyType::Single && connection_string.hosts.len() != 1
+    } else {
+        false
+    };
+
+    let topology = if should_ignore_description {
+        Topology::new(dummy_req_id.clone(), connection_string, None).unwrap()
+    } else {
+        Topology::new(dummy_req_id.clone(), connection_string, description).unwrap()
+    };
 
     let top_description_arc = topology.description.clone();
 
