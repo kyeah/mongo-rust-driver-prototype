@@ -70,14 +70,9 @@ impl IsMasterResult {
             _ => return Err(ArgumentError("result does not contain `ok`.".to_owned())),
         };
 
-        let is_master = match doc.get("ismaster") {
-            Some(&Bson::Boolean(b)) => b,
-            _ => return Err(ArgumentError("result does not contain 'ismaster'.".to_owned())),
-        };
-
         let mut result = IsMasterResult {
             ok: ok,
-            is_master: is_master,
+            is_master: false,
             max_bson_object_size: DEFAULT_MAX_BSON_OBJECT_SIZE,
             max_message_size_bytes: DEFAULT_MAX_MESSAGE_SIZE_BYTES,
             local_time: None,
@@ -98,11 +93,13 @@ impl IsMasterResult {
             hidden: false,
         };
 
+        if let Some(&Bson::Boolean(b)) = doc.get("ismaster") {
+            result.is_master = b;
+        }
 
         if let Some(&Bson::UtcDatetime(ref datetime)) = doc.get("localTime") {
             result.local_time = Some(datetime.clone());
         }
-
 
         if let Some(&Bson::I64(v)) = doc.get("minWireVersion") {
             result.min_wire_version = v;
@@ -147,7 +144,7 @@ impl IsMasterResult {
         }
 
         if let Some(&Bson::Array(ref arr)) = doc.get("arbiters") {
-            result.passives = arr.iter().filter_map(|bson| match bson {
+            result.arbiters = arr.iter().filter_map(|bson| match bson {
                 &Bson::String(ref s) => connstring::parse_host(s).ok(),
                 _ => None,
             }).collect();
@@ -173,10 +170,14 @@ impl IsMasterResult {
             }
         }
 
-        if let Some(&Bson::ObjectId(ref id)) = doc.get("electionId") {
-            result.election_id = Some(id.clone());
+        match doc.get("electionId") {
+            Some(&Bson::ObjectId(ref id)) => result.election_id = Some(id.clone()),
+            Some(&Bson::Document(ref doc)) => if let Some(&Bson::String(ref s)) = doc.get("$oid") {
+                result.election_id = Some(try!(oid::ObjectId::with_string(s)));
+            },
+            _ => (),
         }
-
+        
         Ok(result)
     }
 }
@@ -211,6 +212,7 @@ impl Monitor {
     fn set_err(&self, err: Error) {
         let mut server_description = self.server_description.write().unwrap();
         server_description.set_err(err);
+        self.update_top_description(server_description.clone());
     }
 
     /// Returns an isMaster server response using an owned monitor socket.
@@ -257,12 +259,10 @@ impl Monitor {
                 }
             },
             Some(Err(err)) => {
-                let mut server_description = self.server_description.write().unwrap();
-                server_description.set_err(err);
+                self.set_err(err);
             },
             None => {
-                let mut server_description = self.server_description.write().unwrap();
-                server_description.set_err(OperationError("ismaster returned no response.".to_owned()));
+                self.set_err(OperationError("ismaster returned no response.".to_owned()));
             }
         }
     }

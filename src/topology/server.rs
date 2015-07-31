@@ -108,11 +108,10 @@ impl ServerDescription {
         self.election_id = ismaster.election_id;
         self.primary = ismaster.primary;
 
-        let hosts_empty = self.hosts.is_empty();
         let set_name_empty = self.set_name.is_empty();
         let msg_empty = ismaster.msg.is_empty();
 
-        self.stype = if msg_empty && set_name_empty && hosts_empty {
+        self.stype = if msg_empty && set_name_empty && !ismaster.is_replica_set {
             ServerType::Standalone
         } else if !msg_empty {
             ServerType::Mongos
@@ -135,6 +134,8 @@ impl ServerDescription {
     pub fn set_err(&mut self, err: Error) {
         self.err = Arc::new(Some(err));
         self.stype = ServerType::Unknown;
+        self.set_name = String::new();
+        self.election_id = None;
     }
 }
 
