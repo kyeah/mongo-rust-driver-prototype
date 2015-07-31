@@ -1,4 +1,4 @@
-use Error;
+use Error::{self, OperationError};
 use Result;
 
 use bson::oid;
@@ -92,6 +92,11 @@ impl ServerDescription {
 
     // Updates the server description using an isMaster server response.
     pub fn update(&mut self, ismaster: IsMasterResult) {
+        if !ismaster.ok {
+            self.set_err(OperationError("ismaster returned a not-ok response.".to_owned()));
+            return;
+        }
+
         self.min_wire_version = ismaster.min_wire_version;
         self.max_wire_version = ismaster.max_wire_version;
         self.me = ismaster.me;

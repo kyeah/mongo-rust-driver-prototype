@@ -25,6 +25,7 @@ const DEFAULT_MAX_MESSAGE_SIZE_BYTES: i64 = 48000000;
 /// The result of an isMaster operation.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct IsMasterResult {
+    pub ok: bool,
     pub is_master: bool,
     pub max_bson_object_size: i64,
     pub max_message_size_bytes: i64,
@@ -64,12 +65,18 @@ pub struct Monitor {
 impl IsMasterResult {
     /// Parses an isMaster response document from the server.
     pub fn new(doc: bson::Document) -> Result<IsMasterResult> {
+        let ok = match doc.get("ok") {
+            Some(&Bson::I64(v)) => if v == 0 { false } else { true },
+            _ => return Err(ArgumentError("result does not contain `ok`.".to_owned())),
+        };
+
         let is_master = match doc.get("ismaster") {
-            Some(&Bson::Boolean(ref b)) => *b,
+            Some(&Bson::Boolean(b)) => b,
             _ => return Err(ArgumentError("result does not contain 'ismaster'.".to_owned())),
         };
 
         let mut result = IsMasterResult {
+            ok: ok,
             is_master: is_master,
             max_bson_object_size: DEFAULT_MAX_BSON_OBJECT_SIZE,
             max_message_size_bytes: DEFAULT_MAX_MESSAGE_SIZE_BYTES,
