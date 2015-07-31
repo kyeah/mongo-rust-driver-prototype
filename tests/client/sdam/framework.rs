@@ -1,12 +1,11 @@
 use mongodb::Error::OperationError;
 use mongodb::connstring;
-use mongodb::topology::{Topology, TopologyDescription};
+use mongodb::topology::Topology;
 use mongodb::topology::monitor::IsMasterResult;
-use mongodb::topology::server::Server;
 
 use json::sdam::reader::SuiteContainer;
 use rustc_serialize::json::Json;
-use std::sync::{Arc, RwLock};
+use std::sync::Arc;
 use std::sync::atomic::AtomicIsize;
 
 pub fn run_suite(file: &str) {
