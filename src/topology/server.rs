@@ -72,7 +72,7 @@ impl FromStr for ServerType {
 
 impl ServerDescription {
     /// Returns a default, unknown server description.
-    fn new() -> ServerDescription {
+    pub fn new() -> ServerDescription {
         ServerDescription {
             stype: ServerType::Unknown,
             err: Arc::new(None),

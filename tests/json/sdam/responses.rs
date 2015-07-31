@@ -2,8 +2,8 @@ use bson::{Bson, Document};
 use mongodb::connstring::{self, Host};
 use rustc_serialize::json::Json;
 
-struct Responses {
-    data: Vec<(Host, Document)>,
+pub struct Responses {
+    pub data: Vec<(Host, Document)>,
 }
 
 impl Responses {

@@ -26,10 +26,11 @@ impl Outcome {
                 let doc = val_or_err!(json,
                                       &Json::Object(ref obj) => obj,
                                       "`servers` must be an object map.");
-
-                let server_set_name = val_or_err!(doc.get("setName"),
-                                                  Some(&Json::String(ref s)) => s.to_owned(),
-                                                  "`setName` must be a string.");
+                
+                let server_set_name = match doc.get("setName") {
+                    Some(&Json::String(ref s)) => s.to_owned(),
+                    _ => String::new(),
+                };
 
                 let server_type = val_or_err!(doc.get("type"),
                                               Some(&Json::String(ref s)) => ServerType::from_str(s).unwrap(),

@@ -1,4 +1,3 @@
-use bson::{Bson, Document};
 use rustc_serialize::json::{Json, Object};
 use std::fs::File;
 
@@ -13,18 +12,19 @@ pub struct Phase {
 impl Phase {
     fn from_json(object: &Object) -> Result<Phase, String> {
         let operation = val_or_err!(object.get("responses"),
-                                    Some(&Json::Array(ref array)) => Responses::from_json(array),
+                                    Some(&Json::Array(ref array)) => try!(Responses::from_json(array)),
                                     "No `responses` array found.");
 
         let outcome = val_or_err!(object.get("outcome"),
-                                  Some(&Json::Object(ref obj)) => Outcome::from_json(obj),
+                                  Some(&Json::Object(ref obj)) => try!(Outcome::from_json(obj)),
                                   "No `outcome` object found.");
 
-        Ok(Phase{ operation: operation, outcome: outcome });
+        Ok(Phase{ operation: operation, outcome: outcome })
     }
 }
 
 pub struct Suite {
+    pub uri: String,
     pub phases: Vec<Phase>,
 }
 
@@ -68,7 +68,12 @@ impl SuiteContainer for Json {
                                  &Json::Object(ref object) => object.clone(),
                                  "`get_suite` requires a JSON object");
 
+        let uri = val_or_err!(object.get("uri"),
+                              Some(&Json::String(ref s)) => s.clone(),
+                              "`get_suite` requires a connection uri");
+
+
         let phases = try!(get_phases(&object));
-        Ok(Suite { phases: phases })
+        Ok(Suite { uri: uri, phases: phases })
     }
 }

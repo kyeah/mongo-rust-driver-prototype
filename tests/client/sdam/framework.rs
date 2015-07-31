@@ -1,43 +1,66 @@
-#[macro_export]
-macro_rules! run_suite {
-    ( $file:expr ) => {{
-        let json = Json::from_file($file).unwrap();
-        let mut suite = json.get_suite().unwrap();
+use mongodb::Error::OperationError;
+use mongodb::connstring;
+use mongodb::topology::{Topology, TopologyDescription};
+use mongodb::topology::monitor::IsMasterResult;
+use mongodb::topology::server::Server;
 
-        let mut topology_description = TopologyDescription::new();
-        let mut server_description = ServerDescription::new();
+use json::sdam::reader::SuiteContainer;
+use rustc_serialize::json::Json;
+use std::sync::{Arc, RwLock};
+use std::sync::atomic::AtomicIsize;
 
-        let dummy_top_description = Arc::new(RwLock::new(TopologyDescription::new()));
-        let dummy_req_id = Arc::new(AtomicIsize::new());
-        
-        for phase in suite.phases {            
-            for (host, response) in phase.operation.data {
-                if response.is_empty() {
-                    server_description.set_err(OperationError("Simulated network error.".to_owned()));
-                } else {
-                    match IsMasterResult::new(response) {
-                        Ok(ismaster) => server_description.update(ismaster),
-                        _ => panic!("Failed to parse ismaster result."),
-                    }
-                    
-                    topology_description.update(host.clone(), server_description.clone(),
-                                                dummy_req_id.clone(), dummy_top_description.clone());
-                }
-            }
+pub fn run_suite(file: &str) {
+    let json = Json::from_file(file).unwrap();
+    let suite = json.get_suite().unwrap();
 
-            assert_eq!(phase.outcome.len(), topology_description.servers.len());
-            for (host, server) in phase.outcome.iter() {
-                match topology_description.servers.get(host) {
-                    Some(top_server) => {
-                        assert_eq!(server.set_name, top_server.set_name);
-                        assert_eq!(server.stype, top_server.stype);
+    let dummy_req_id = Arc::new(AtomicIsize::new(0));
+
+    let connection_string = connstring::parse(&suite.uri).unwrap();
+    let topology = Topology::new(dummy_req_id.clone(), connection_string, None).unwrap();
+
+    let top_description_arc = topology.description.clone();
+    let mut topology_description = topology.description.write().unwrap();
+
+
+    for phase in suite.phases {
+        for (host, response) in phase.operation.data {
+            if response.is_empty() {
+                let server = topology_description.servers.get(&host).unwrap();
+                let mut server_description = server.description.write().unwrap();
+                server_description.set_err(OperationError("Simulated network error.".to_owned()));
+            } else {
+                match IsMasterResult::new(response) {
+                    Ok(ismaster) => {
+                        let server = topology_description.servers.get(&host).unwrap();
+                        let mut server_description = server.description.write().unwrap();
+                        server_description.update(ismaster)
                     },
-                    None => panic!("Missing host in outcome."),
+                    Err(err) => panic!(err),
                 }
-            }
 
-            assert_eq!(phase.outcome.set_name, topology_description.set_name);
-            assert_eq!(phase.outcome.ttype, topology_description.ttype);
+                let server_description = {
+                    let server = topology_description.servers.get(&host).unwrap();
+                    server.description.read().unwrap().clone()
+                };
+
+                topology_description.update(host.clone(), server_description.clone(),
+                                            dummy_req_id.clone(), top_description_arc.clone());
+            }
         }
-    }};
+
+        assert_eq!(phase.outcome.servers.len(), topology_description.servers.len());
+        for (host, server) in phase.outcome.servers.iter() {
+            match topology_description.servers.get(host) {
+                Some(top_server) => {
+                    let top_server_description = top_server.description.read().unwrap();
+                    assert_eq!(server.set_name, top_server_description.set_name);
+                    assert_eq!(server.stype, top_server_description.stype);
+                },
+                None => panic!("Missing host in outcome."),
+            }
+        }
+
+        assert_eq!(phase.outcome.set_name, topology_description.set_name);
+        assert_eq!(phase.outcome.ttype, topology_description.ttype);
+    }
 }

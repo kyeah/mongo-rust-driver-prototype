@@ -39,7 +39,7 @@ pub struct TopologyDescription {
     pub ttype: TopologyType,
     pub set_name: String,
     pub heartbeat_frequency_ms: u32,
-    servers: HashMap<Host, Server>,
+    pub servers: HashMap<Host, Server>,
     max_election_id: Option<oid::ObjectId>,
     compatible: bool,
     compat_error: String,
