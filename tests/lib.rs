@@ -1,7 +1,13 @@
+#[macro_use(bson, doc)]
 extern crate bson;
-
-#[macro_use(add_to_doc, doc)]
 extern crate mongodb;
+extern crate rand;
+extern crate rustc_serialize;
+extern crate nalgebra;
 
+mod apm;
+mod auth;
 mod client;
-mod macros;
+mod json;
+mod sdam;
+mod server_selection;

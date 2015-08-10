@@ -20,6 +20,7 @@ git = "https://github.com/zonyitoo/bson-rs"
 
 [dependencies.mongodb]
 git = "https://github.com/mongodbinc-interns/mongo-rust-driver-prototype"
+branch = "1.0"
 ```
 
 Then, import the bson and driver libraries within your code.
@@ -46,10 +47,12 @@ fn main() {
                     "array" => [ 1, 2, 3 ] };
 
    // Insert document into 'test.movies' collection
-   coll.insert_one(doc.clone(), None).ok().expect("Failed to insert document.");
+   coll.insert_one(doc.clone(), None)
+       .ok().expect("Failed to insert document.");
 
    // Find the document and receive a cursor
-   let mut cursor = coll.find(doc.clone(), None).ok().expect("Failed to execute find.");
+   let mut cursor = coll.find(doc.clone(), None)
+       .ok().expect("Failed to execute find.");
 
    let item = cursor.next();
 
