@@ -20,5 +20,5 @@ for release in ${releases[*]}; do
     full_names="$full_names mongodb-$os-$arch-$release"
 done
 
-echo "parallel $script_dir/test_mongo_release ::: $full_names ::: $install_dir ::: $data_dir"
-parallel $script_dir/test_mongo_release ::: $full_names ::: $install_dir ::: $data_dir
+echo "parallel $script_dir/start_mongo_release ::: $full_names ::: $install_dir ::: $data_dir"
+parallel --gnu $script_dir/start_mongo_release ::: $full_names ::: $install_dir ::: $data_dir
