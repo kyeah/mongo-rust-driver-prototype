@@ -10,4 +10,6 @@ before_install:
   - ./script/install_mongo_releases linux x86_64-ubuntu1204
 
 script:
-  - ./script/test_mongo_releases linux x86_64-ubuntu1204
+  - ./script/start_mongo_releases linux x86_64-ubuntu1204
+  - ./script/test_mongo_releases
+  - /script/test_mongo_releases ssl

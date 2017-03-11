@@ -7,34 +7,11 @@ if [ $# -lt 1 ]; then
     exit
 fi
 
-release=$1
-install_dir=$2
-data_dir=$3
-
-data="data_dir/$release/data"
-data_ssl="$data-ssl"
-
-mkdir -p $data $data_ssl
-
-# use mongo orchestration here to make it easier to start and stop these processes, yo
-function get_unused_port() {
-    for port in $(seq 4444 65000);
-    do
-        echo -ne "\035" | telnet 127.0.0.1 $port > /dev/null 2>&1;
-        [ $? -eq 1 ] && echo "$port" && break;
-    done
-}
-
-# TODO: how to ensure this during parallel
-port="$(get_unused_port)"
-echo "Opening mongod on port $port"
-$install_dir/$release/bin/mongod --fork --dbpath $data --syslog --port $port
-
-ssl_port="$(get_unused_port)"
-echo "Opening mongod with ssl on port $ssl_port"
-$install_dir/$release/bin/mongod --fork --dbpath $data_ssl --syslog --port $ssl_port --sslMode requireSSL --sslPEMKeyFile tests/ssl/server.pem --sslCAFile tests/ssl/ca.pem
+port=$1
+ssl_port=$2
 
 # TODO: add method to read env or have default for tests
-MONGODB_RUST_DRIVER_TEST_PORT="mongodb://localhost:$port" cargo test --verbose
+parallel --gnu MONGODB_RUST_DRIVER_TEST_PORT="mongodb://localhost:$port" cargo test --verbose ::: $ports
+
 MONGODB_RUST_DRIVER_TEST_PORT="mongodb://localhost:$port" MONGODB_RUST_DRIVER_TEST_SSL_PORT="mongodb://localhost:$ssl_port" cargo test --features ssl --verbose
 
