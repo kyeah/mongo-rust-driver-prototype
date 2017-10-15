@@ -45,9 +45,11 @@ extern crate bson;
 extern crate mongodb;
 extern crate rand;
 extern crate serde_json;
+extern crate test;
 
 mod apm;
 mod auth;
+mod bench;
 mod client;
 mod json;
 mod sdam;
