@@ -336,7 +336,9 @@ pub struct IndexModel {
 }
 
 impl IndexModel {
-    pub fn new(keys: bson::Document, options: Option<IndexOptions>) -> IndexModel {
+    pub fn new<O>(keys: bson::Document, options: O) -> IndexModel
+        where O: Into<Option<IndexOptions>>
+    {
         IndexModel {
             keys: keys,
             options: options.unwrap_or_else(IndexOptions::new),

@@ -138,11 +138,13 @@ impl fmt::Display for BulkWriteError {
 
 impl WriteException {
     /// Returns a new WriteException containing the given errors.
-    pub fn new(wc_err: Option<WriteConcernError>, w_err: Option<WriteError>) -> WriteException {
-        let mut s = match wc_err {
-            Some(ref error) => format!("{:?}\n", error),
-            None => String::from(""),
-        };
+    pub fn new<WC, W>(wc_err: WC, w_err: W) -> WriteException where
+        WC: Into<Option<WriteConcernError>>,
+        W: Into<Option<WriteError>>,
+    {
+        let mut s = wc_err.into().as_ref()
+            .map(|err| format!("{:?}\n", err))
+            .unwrap_or_else(|| String::new());
 
         if let Some(ref error) = w_err {
             s.push_str(&format!("{:?}\n", error)[..]);

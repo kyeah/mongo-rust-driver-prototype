@@ -126,46 +126,51 @@ pub trait ThreadedDatabase {
         read_preference: Option<ReadPreference>,
     ) -> Result<bson::Document>;
     /// Returns a list of collections within the database.
-    fn list_collections(&self, filter: Option<bson::Document>) -> Result<Cursor>;
+    fn list_collections<D>(&self, filter: D) -> Result<Cursor> where
+        D: Into<Option<bson::Document>>;
     /// Returns a list of collections within the database with a custom batch size.
-    fn list_collections_with_batch_size(
+    fn list_collections_with_batch_size<D>(
         &self,
-        filter: Option<bson::Document>,
+        filter: D,
         batch_size: i32,
-    ) -> Result<Cursor>;
+    ) -> Result<Cursor> where D: Into<Option<bson::Document>>;
     /// Returns a list of collection names within the database.
-    fn collection_names(&self, filter: Option<bson::Document>) -> Result<Vec<String>>;
+    fn collection_names<D>(&self, filter: D) -> Result<Vec<String>> where
+        D: Into<Option<bson::Document>>;
     /// Creates a new collection.
     ///
     /// Note that due to the implicit creation of collections during insertion, this
     /// method should only be used to instantiate capped collections.
-    fn create_collection(&self, name: &str, options: Option<CreateCollectionOptions>)
-        -> Result<()>;
+    fn create_collection<O>(&self, name: &str, options: O) -> Result<()> where
+        O: Into<Option<CreateCollectionOptions>>;
     /// Creates a new user.
-    fn create_user(
+    fn create_user<O>(
         &self,
         name: &str,
         password: &str,
-        options: Option<CreateUserOptions>,
-    ) -> Result<()>;
+        options: O,
+    ) -> Result<()> where O: Into<Option<CreateUserOptions>>;
     /// Permanently deletes all users from the database.
-    fn drop_all_users(&self, write_concern: Option<WriteConcern>) -> Result<(i32)>;
+    fn drop_all_users<WC>(&self, write_concern: WC) -> Result<(i32)> where
+        WC: Into<Option<WriteConcern>>;
     /// Permanently deletes the collection from the database.
     fn drop_collection(&self, name: &str) -> Result<()>;
     /// Permanently deletes the database from the server.
     fn drop_database(&self) -> Result<()>;
     /// Permanently deletes the user from the database.
-    fn drop_user(&self, name: &str, Option<WriteConcern>) -> Result<()>;
+    fn drop_user<WC>(&self, name: &str, write_concern: WC) -> Result<()> where
+        WC: Into<Option<WriteConcern>>;
     /// Retrieves information about all users in the database.
     fn get_all_users(&self, show_credentials: bool) -> Result<Vec<bson::Document>>;
     /// Retrieves information about a given user from the database.
-    fn get_user(&self, user: &str, options: Option<UserInfoOptions>) -> Result<bson::Document>;
+    fn get_user<O>(&self, user: &str, options: O) -> Result<bson::Document> where
+        O: Into<Option<UserInfoOptions>>;
     /// Retrieves information about a given set of users from the database.
-    fn get_users(
+    fn get_users<O>(
         &self,
         users: Vec<&str>,
-        options: Option<UserInfoOptions>,
-    ) -> Result<Vec<bson::Document>>;
+        options: O,
+    ) -> Result<Vec<bson::Document>> where O: Into<Option<UserInfoOptions>>;
 }
 
 impl ThreadedDatabase for Database {
@@ -196,8 +201,8 @@ impl ThreadedDatabase for Database {
             self.clone(),
             coll_name,
             false,
-            Some(self.read_preference.to_owned()),
-            Some(self.write_concern.to_owned()),
+            self.read_preference.to_owned(),
+            self.write_concern.to_owned(),
         )
     }
 
@@ -257,25 +262,27 @@ impl ThreadedDatabase for Database {
         })
     }
 
-    fn list_collections(&self, filter: Option<bson::Document>) -> Result<Cursor> {
+    fn list_collections<D>(&self, filter: D) -> Result<Cursor> where
+        D: Into<Option<bson::Document>>
+    {
         self.list_collections_with_batch_size(filter, DEFAULT_BATCH_SIZE)
     }
 
-    fn list_collections_with_batch_size(
+    fn list_collections_with_batch_size<D>(
         &self,
-        filter: Option<bson::Document>,
+        filter: D,
         batch_size: i32,
-    ) -> Result<Cursor> {
-
+    ) -> Result<Cursor> where D: Into<Option<bson::Document>> {
         let mut spec = bson::Document::new();
         let mut cursor = bson::Document::new();
 
         cursor.insert("batchSize", Bson::I32(batch_size));
         spec.insert("listCollections", Bson::I32(1));
         spec.insert("cursor", Bson::Document(cursor));
-        if filter.is_some() {
-            spec.insert("filter", Bson::Document(filter.unwrap()));
-        }
+
+        filter.into().map(|filter| {
+            spec.insert("filter", Bson::Document(filter));
+        });
 
         self.command_cursor(
             spec,
@@ -284,7 +291,9 @@ impl ThreadedDatabase for Database {
         )
     }
 
-    fn collection_names(&self, filter: Option<bson::Document>) -> Result<Vec<String>> {
+    fn collection_names<D>(&self, filter: D) -> Result<Vec<String>> where
+        D: Into<Option<bson::Document>>
+    {
         let mut cursor = try!(self.list_collections(filter));
         let mut results = vec![];
         loop {
@@ -317,35 +326,34 @@ impl ThreadedDatabase for Database {
         }
     }
 
-    fn create_collection(
+    fn create_collection<O>(
         &self,
         name: &str,
-        options: Option<CreateCollectionOptions>,
-    ) -> Result<()> {
+        options: O,
+    ) -> Result<()> where O: Into<Option<CreateCollectionOptions>> {
         let mut doc = doc! { "create": name };
-
-        if let Some(create_collection_options) = options {
-            doc = merge_options(doc, create_collection_options);
-        }
+        options.into().map(|options| {
+            doc = merge_options(doc, options)
+        });
 
         self.command(doc, CommandType::CreateCollection, None).map(
             |_| (),
         )
     }
 
-    fn create_user(
+    fn create_user<O>(
         &self,
         name: &str,
         password: &str,
-        options: Option<CreateUserOptions>,
-    ) -> Result<()> {
+        options: O,
+    ) -> Result<()> where O: Into<Option<CreateUserOptions>> {
         let mut doc =
             doc! {
             "createUser": name,
             "pwd": password
         };
 
-        match options {
+        match options.into() {
             Some(user_options) => {
                 doc = merge_options(doc, user_options);
             }
@@ -357,12 +365,14 @@ impl ThreadedDatabase for Database {
         self.command(doc, CommandType::CreateUser, None).map(|_| ())
     }
 
-    fn drop_all_users(&self, write_concern: Option<WriteConcern>) -> Result<(i32)> {
+    fn drop_all_users<WC>(&self, write_concern: WC) -> Result<(i32)> where
+        WC: Into<Option<WriteConcern>>
+    {
         let mut doc = doc! { "dropAllUsersFromDatabase": 1 };
 
-        if let Some(concern) = write_concern {
+        write_concern.into().map(|concern| {
             doc.insert("writeConcern", Bson::Document(concern.to_bson()));
-        }
+        });
 
         let response = try!(self.command(doc, CommandType::DropAllUsers, None));
 
@@ -387,12 +397,14 @@ impl ThreadedDatabase for Database {
         Ok(())
     }
 
-    fn drop_user(&self, name: &str, write_concern: Option<WriteConcern>) -> Result<()> {
+    fn drop_user<WC>(&self, name: &str, write_concern: WC) -> Result<()> where
+        WC: Into<Option<WriteConcern>>
+    {
         let mut doc = doc! { "dropUser": name };
 
-        if let Some(concern) = write_concern {
-            doc.insert("writeConcern", (concern.to_bson()));
-        }
+        write_concern.into().map(|concern| {
+            doc.insert("writeConcern", concern.to_bson());
+        });
 
         self.command(doc, CommandType::DropUser, None).map(|_| ())
     }
@@ -422,15 +434,17 @@ impl ThreadedDatabase for Database {
         Ok(users)
     }
 
-    fn get_user(&self, user: &str, options: Option<UserInfoOptions>) -> Result<bson::Document> {
+    fn get_user<O>(&self, user: &str, options: O) -> Result<bson::Document> where
+        O: Into<Option<UserInfoOptions>>
+    {
         let mut doc =
             doc! {
             "usersInfo": { "user": user, "db": self.name.to_owned() }
         };
 
-        if let Some(user_info_options) = options {
-            doc = merge_options(doc, user_info_options);
-        }
+        options.into().map(|opts| {
+            doc = merge_options(doc, opts);
+        });
 
         let out = match self.command(doc, CommandType::GetUser, None) {
             Ok(doc) => doc,
@@ -448,11 +462,11 @@ impl ThreadedDatabase for Database {
         }
     }
 
-    fn get_users(
+    fn get_users<O>(
         &self,
         users: Vec<&str>,
-        options: Option<UserInfoOptions>,
-    ) -> Result<Vec<bson::Document>> {
+        options: O,
+    ) -> Result<Vec<bson::Document>> where O: Into<Option<UserInfoOptions>> {
         let vec: Vec<_> = users
             .into_iter()
             .map(|user| {
@@ -463,9 +477,9 @@ impl ThreadedDatabase for Database {
 
         let mut doc = doc! { "usersInfo": vec };
 
-        if let Some(user_info_options) = options {
-            doc = merge_options(doc, user_info_options);
-        }
+        options.into().map(|opts| {
+            doc = merge_options(doc, opts);
+        });
 
         let out = try!(self.command(doc, CommandType::GetUsers, None));
         let vec = match out.get("users") {

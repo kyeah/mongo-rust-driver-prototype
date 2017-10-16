@@ -195,7 +195,9 @@ impl BulkWriteResult {
 
 impl BulkDeleteResult {
     /// Extracts server reply information into a result.
-    pub fn new(doc: bson::Document, exception: Option<BulkWriteException>) -> BulkDeleteResult {
+    pub fn new<E>(doc: bson::Document, exception: E) -> BulkDeleteResult where
+        E: Into<Option<BulkWriteException>>
+    {
         let n = match doc.get("n") {
             Some(&Bson::I32(n)) => n,
             _ => 0,
@@ -211,7 +213,9 @@ impl BulkDeleteResult {
 
 impl BulkUpdateResult {
     /// Extracts server reply information into a result.
-    pub fn new(doc: bson::Document, exception: Option<BulkWriteException>) -> BulkUpdateResult {
+    pub fn new<E>(doc: bson::Document, exception: E) -> BulkUpdateResult where
+        E: Into<Option<BulkWriteException>>
+    {
         let n = match doc.get("n") {
             Some(&Bson::I32(n)) => n,
             _ => 0,
@@ -241,7 +245,9 @@ impl BulkUpdateResult {
 
 impl InsertOneResult {
     /// Extracts server reply information into a result.
-    pub fn new(inserted_id: Option<Bson>, exception: Option<WriteException>) -> InsertOneResult {
+    pub fn new<E>(inserted_id: Option<Bson>, exception: E) -> InsertOneResult where
+        E: Into<Option<WriteException>>
+    {
         InsertOneResult {
             acknowledged: true,
             inserted_id: inserted_id,
@@ -266,7 +272,8 @@ impl InsertManyResult {
 
 impl DeleteResult {
     /// Extracts server reply information into a result.
-    pub fn new(doc: bson::Document, exception: Option<WriteException>) -> DeleteResult {
+    pub fn new<E>(doc: bson::Document, exception: E) -> DeleteResult where
+        E: Into<Option<WriteException>> {
         let n = match doc.get("n") {
             Some(&Bson::I32(n)) => n,
             _ => 0,
@@ -295,7 +302,9 @@ impl DeleteResult {
 
 impl UpdateResult {
     /// Extracts server reply information into a result.
-    pub fn new(doc: bson::Document, exception: Option<WriteException>) -> UpdateResult {
+    pub fn new<E>(doc: bson::Document, exception: E) -> UpdateResult where
+        E: Into<Option<WriteException>>
+    {
         let n = match doc.get("n") {
             Some(&Bson::I32(n)) => n,
             _ => 0,

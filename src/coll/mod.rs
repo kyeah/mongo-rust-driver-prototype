@@ -38,16 +38,19 @@ impl Collection {
     /// Creates a collection representation with optional read and write controls.
     ///
     /// If `create` is specified, the collection will be explicitly created in the database.
-    pub fn new(
+    pub fn new<RP, WC>(
         db: Database,
         name: &str,
         create: bool,
-        read_preference: Option<ReadPreference>,
-        write_concern: Option<WriteConcern>,
-    ) -> Collection {
+        read_preference: RP,
+        write_concern: WC,
+    ) -> Collection where
+        RP: Into<Option<ReadPreference>>,
+        WC: Into<Option<WriteConcern>>,
+    {
 
-        let rp = read_preference.unwrap_or_else(|| db.read_preference.to_owned());
-        let wc = write_concern.unwrap_or_else(|| db.write_concern.to_owned());
+        let rp = read_preference.into().unwrap_or_else(|| db.read_preference.to_owned());
+        let wc = write_concern.into().unwrap_or_else(|| db.write_concern.to_owned());
 
         if create {
             // Attempt to create the collection explicitly, or fail silently.
@@ -988,7 +991,9 @@ impl Collection {
     }
 
     /// Drop an index.
-    pub fn drop_index(&self, keys: bson::Document, options: Option<IndexOptions>) -> Result<()> {
+    pub fn drop_index<O>(&self, keys: bson::Document, options: O) -> Result<()> where
+        O: Into<Option<IndexOptions>>
+    {
         let model = IndexModel::new(keys, options);
         self.drop_index_model(model)
     }
